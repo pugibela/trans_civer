@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys
 import Pyro4
-from tranceiver_rev3 import TransCiver
-transciver = Pyro4.Proxy("PYRONAME:Yuval")
+from tranceiver import TransCiver
+transciver = Pyro4.Proxy("PYRONAME:Yuvals.transciver")
 transciver.Hello
-## transciver.Get
+transciver.Get

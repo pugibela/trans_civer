@@ -19,10 +19,12 @@ import Pyro4.core
 import Pyro4.naming
 import sys
 import os
+import socket
+import select
 import logging
 from threading import Thread
 from time import sleep
-##import threading
+import threading
 if sys.version_info<(3,0):
     input=raw_input
 
@@ -30,9 +32,9 @@ class TransCiver(object):
     def __init__(self):
         self.outf=open('newOutfile', 'w') # place holder for data recived
         self.inf=open('newInfile', 'r') # place holder for data to send
-        self.transciver = Pyro4.core.Proxy("PYRONAME:yuval")
+        self.transciver = Pyro4.core.Proxy("PYRONAME:Yuvals.transciver")
         self.abort = 0
-    @Pyro4.oneway
+    #@Pyro4.oneway
     #self.data
     # make a say hello and call it from a secnd program...
     def Hello(self):
@@ -95,31 +97,55 @@ class TransCiver(object):
         finally:
             print('OK leaving now that was fun...')
             self.abort = 1
-            self.DaemonThread()
+            #self.DaemonThread()
 
 ### for clients ########## github.com #####
 class DaemonThread(object):
     def __init__(self):
     	self.abort = 0
-    def DaemonThread(self): #, transciver):
-        if self.abort:
- 			print("closing the name server")
-			daemon.close()
-			ns.close()
-        #
-        Pyro4.config.SERVERTYPE="thread"
-        #hostname=socket.gethostname()
-        #print("initializing services... servertype=%s" % Pyro4.config.SERVERTYPE)
-        print("calling the Pyro4.core.Daemon")
-        with Pyro4.core.Daemon() as daemon:
-        	#print("try to locate NS")
-            with Pyro4.naming.locateNS() as ns:
-                uri = daemon.register(TransCiver())
-                print('URI %s' % ns.register("Yuval", uri))
-                print('Pyro NS "Yuval" now running...')
-                #print("availabe name servers..." % daemon.locationStr)
-            	daemon.requestLoop()
-
+    def DaemonThread(self):
+    	Pyro4.config.SERVERTYPE="thread"
+    	hostname=socket.gethostname()
+    	nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=hostname)
+    	assert broadcastServer is not None, "expect a broadcast server to be created"
+    	# create a Pyro daemon
+    	pyrodaemon=Pyro4.core.Daemon(host=hostname)
+    	# register a server object with the daemon
+    	serveruri=pyrodaemon.register(TransCiver())
+    	print("server uri=%s" % serveruri)
+    	# register it with the embedded nameserver directly
+    	nameserverDaemon.nameserver.register("Yuvals.transciver",serveruri)
+    	while True:
+    	#print("Waiting for events...")
+    	# create sets of the socket objects we will be waiting on
+    	# (a set provides fast lookup compared to a list)
+    		nameserverSockets = set(nameserverDaemon.sockets)
+    		pyroSockets = set(pyrodaemon.sockets)
+    		rs=[broadcastServer]  # only the broadcast server is directly usable as a select() object
+    		rs.extend(nameserverSockets)
+    		rs.extend(pyroSockets)
+    		rs,_,_ = select.select(rs,[],[],3)
+    		eventsForNameserver=[]
+    		eventsForDaemon=[]
+    		for s in rs:
+        		if s is broadcastServer:
+        			print("Broadcast server received a request")
+        			broadcastServer.processRequest()
+        		elif s in nameserverSockets:
+        		    eventsForNameserver.append(s)
+        		elif s in pyroSockets:
+        		    eventsForDaemon.append(s)
+    		if eventsForNameserver:
+    			print("Nameserver received a request")
+    			nameserverDaemon.events(eventsForNameserver)
+    		if eventsForDaemon:
+    			print("Daemon received a request")
+    			pyrodaemon.events(eventsForDaemon)
+	nameserverDaemon.close()
+	broadcastServer.close()
+	pyrodaemon.close()
+	print("done")	
+## End class Daemon therade 
 ################################################################
 
 # --- MAIN --- #
@@ -127,14 +153,16 @@ class DaemonThread(object):
 if __name__ == "__main__":
     transciver = TransCiver()
     daemon = DaemonThread()
-    #daemonthread = Thread(target = DaemonThread(transciver))
-    print("starting the deamon")
+	#daemonthread = Thread(target = DaemonThread(transciver))
     deamonthread = Thread(target = daemon.DaemonThread)
-    print("strting the Transiver while thread")
     busyloop = Thread(target = transciver.busyWait)
+    
+    print("starting the deamon")
     deamonthread.start()
+    
+    print("strting the Transiver while thread")
     busyloop.start()
+    
     deamonthread.join()
     
-    print('Exit.')
-
+    print('Exit from transciver Main...')
