@@ -98,22 +98,27 @@ class TransCiver(object):
             self.DaemonThread()
 
 ### for clients ########## github.com #####
-#class DaemonThread(threadutil.Thread):
+class DaemonThread(object):
+    def __init__(self):
+    	self.abort = 0
     def DaemonThread(self): #, transciver):
         if self.abort:
  			print("closing the name server")
 			daemon.close()
 			ns.close()
         #
-        #Pyro4.config.SERVERTYPE="thread"
-        print("initializing services... servertype=%s" % Pyro4.config.SERVERTYPE)
+        Pyro4.config.SERVERTYPE="thread"
+        #hostname=socket.gethostname()
+        #print("initializing services... servertype=%s" % Pyro4.config.SERVERTYPE)
         print("calling the Pyro4.core.Daemon")
         with Pyro4.core.Daemon() as daemon:
+        	#print("try to locate NS")
             with Pyro4.naming.locateNS() as ns:
                 uri = daemon.register(TransCiver())
-                ns.register("Yuval", uri)
+                print('URI %s' % ns.register("Yuval", uri))
                 print('Pyro NS "Yuval" now running...')
-            daemon.requestLoop()
+                #print("availabe name servers..." % daemon.locationStr)
+            	daemon.requestLoop()
 
 ################################################################
 
@@ -121,9 +126,10 @@ class TransCiver(object):
 # craet the TranCiver obj call the deamon thread strat the Pyro obj and call the busy wating loop intf' with users
 if __name__ == "__main__":
     transciver = TransCiver()
+    daemon = DaemonThread()
     #daemonthread = Thread(target = DaemonThread(transciver))
     print("starting the deamon")
-    deamonthread = Thread(target = transciver.DaemonThread)
+    deamonthread = Thread(target = daemon.DaemonThread)
     print("strting the Transiver while thread")
     busyloop = Thread(target = transciver.busyWait)
     deamonthread.start()
