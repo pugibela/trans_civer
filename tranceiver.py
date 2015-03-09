@@ -36,8 +36,9 @@ class TransCiver(object):
         self.abort = 0
     #@Pyro4.oneway
     #self.data
+    
     # make a say hello and call it from a secnd program...
-    def Hello(self):
+    def Hello():
         print("Hey did you call me ...?")
         print("Hello....")
     
@@ -87,6 +88,7 @@ class TransCiver(object):
                 while not self.abort:
                     cmd = input('> ').strip()
                     if cmd == '/quit':
+                    	self.abort = 1
                         break
                     if cmd == 'send':
                         self.send()
@@ -100,9 +102,9 @@ class TransCiver(object):
             #self.DaemonThread()
 
 ### for clients ########## github.com #####
-class DaemonThread(object):
-    def __init__(self):
-    	self.abort = 0
+#class DaemonThread(object):
+#    def __init__(self):
+#    	self.abort = 0
     def DaemonThread(self):
     	Pyro4.config.SERVERTYPE="thread"
     	hostname=socket.gethostname()
@@ -111,11 +113,11 @@ class DaemonThread(object):
     	# create a Pyro daemon
     	pyrodaemon=Pyro4.core.Daemon(host=hostname)
     	# register a server object with the daemon
-    	serveruri=pyrodaemon.register(TransCiver())
+    	serveruri=pyrodaemon.register(self) #TransCiver())
     	print("server uri=%s" % serveruri)
     	# register it with the embedded nameserver directly
     	nameserverDaemon.nameserver.register("Yuvals.transciver",serveruri)
-    	while True:
+    	while self.abort == 0: #True:
     	#print("Waiting for events...")
     	# create sets of the socket objects we will be waiting on
     	# (a set provides fast lookup compared to a list)
@@ -141,10 +143,11 @@ class DaemonThread(object):
     		if eventsForDaemon:
     			print("Daemon received a request")
     			pyrodaemon.events(eventsForDaemon)
-	nameserverDaemon.close()
-	broadcastServer.close()
-	pyrodaemon.close()
-	print("done")	
+	if self.abort == 1: 
+		nameserverDaemon.close()
+		broadcastServer.close()
+		pyrodaemon.close()
+		print("done")	
 ## End class Daemon therade 
 ################################################################
 
@@ -152,17 +155,17 @@ class DaemonThread(object):
 # craet the TranCiver obj call the deamon thread strat the Pyro obj and call the busy wating loop intf' with users
 if __name__ == "__main__":
     transciver = TransCiver()
-    daemon = DaemonThread()
-	#daemonthread = Thread(target = DaemonThread(transciver))
-    deamonthread = Thread(target = daemon.DaemonThread)
+    #daemon = DaemonThread()
+    daemonthread = Thread(target = transciver.DaemonThread)
+    #daemonthread = Thread(target = daemon.DaemonThread)
     busyloop = Thread(target = transciver.busyWait)
     
     print("starting the deamon")
-    deamonthread.start()
+    daemonthread.start()
     
     print("strting the Transiver while thread")
     busyloop.start()
     
-    deamonthread.join()
+    daemonthread.join()
     
     print('Exit from transciver Main...')
