@@ -32,7 +32,7 @@ class TransCiver(object):
     def __init__(self):
         self.outf=open('newOutfile', 'w') # place holder for data recived
         self.inf=open('newInfile', 'r') # place holder for data to send
-        #self.transciver = Pyro4.core.Proxy("PYRONAME:Yuvals.transciver")
+        self.transciver = Pyro4.core.Proxy("PYRONAME:Yuvals.transciver")
         self.abort = 0
     #@Pyro4.oneway
     #self.data
@@ -113,7 +113,7 @@ class TransCiver(object):
     	# create a Pyro daemon
     	pyrodaemon=Pyro4.core.Daemon(host=hostname)
     	# register a server object with the daemon
-    	serveruri=pyrodaemon.register(TransCiver())
+    	serveruri=pyrodaemon.register(self) #TransCiver())
     	print("server uri=%s" % serveruri)
     	# register it with the embedded nameserver directly
     	nameserverDaemon.nameserver.register("Yuvals.transciver",serveruri)
@@ -153,18 +153,19 @@ class TransCiver(object):
 
 # --- MAIN --- #
 # craet the TranCiver obj call the deamon thread strat the Pyro obj and call the busy wating loop intf' with users
-def main():
-	transciver = TransCiver()
-	#daemon = DaemonThread()
-	#daemonthread = Thread(target = daemon.DaemonThread)
-	daemonthread = Thread(target = transciver.DaemonThread)
-	busyloop = Thread(target = transciver.busyWait)
-	print("starting the deamon")
-	daemonthread.start()
-	print("strting the Transiver while thread")
-	busyloop.start()
-	daemonthread.join()
-	busyloop.join()
-	print('Exit from transciver Main...')
 if __name__ == "__main__":
-	main()
+    transciver = TransCiver()
+    #daemon = DaemonThread()
+    daemonthread = Thread(target = transciver.DaemonThread)
+    #daemonthread = Thread(target = daemon.DaemonThread)
+    busyloop = Thread(target = transciver.busyWait)
+    
+    print("starting the deamon")
+    daemonthread.start()
+    
+    print("strting the Transiver while thread")
+    busyloop.start()
+    
+    daemonthread.join()
+    
+    print('Exit from transciver Main...')
