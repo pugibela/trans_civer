@@ -33,27 +33,15 @@ class TransCiver(object):
         self.outf=open('newOutfile', 'w') # place holder for data recived
         self.inf=open('newInfile', 'r') # place holder for data to send
         #self.transciver = Pyro4.core.Proxy("PYRONAME:Yuvals.transciver")
-        self.name=input("Need a name for the server :").strip()
         self.abort = 0
-        print("NAME ",self.name)
     #@Pyro4.oneway
     #self.data
     
     # make a say hello and call it from a secnd program...
-    def Call(self):
-        remoteName=input("Hi who are we saying Hi to? ").strip()
-        ns = Pyro4.locateNS()
-        print("NS LIST",ns.list(),"\n")
-        remote_uri = ns.lookup(remoteName)
-        print("Remote URI = ",remote_uri)
-        remoteT=Pyro4.Proxy(remote_uri)
-        print("remoteT ",remoteT)
-        remoteT.Hello
-
-    def Hello(self):
+    def Hello():
         print("Hey did you call me ...?")
         print("Hello....")
-        
+    
     def Get(self):
         file_name_to_recive=input("tell me the file you want to Get: ").strip()
         snder=input("where shuold I get it from? ").strip()
@@ -106,27 +94,65 @@ class TransCiver(object):
                         self.send()
                     if cmd == 'get':
                         self.Get()
-                    if cmd == 'call':
-                        self.Call()
             except EOFError:
                 pass
         finally:
             print('OK leaving now that was fun...')
             self.abort = 1
             #self.DaemonThread()
+
+### for clients ########## github.com #####
+#class DaemonThread(object):
+#    def __init__(self):
+#    	self.abort = 0
     def DaemonThread(self):
-        daemon = Pyro4.Daemon.serveSimple(
-                {
-                  self: self.name
-                },
-                ns = True)
-        uri = daemon.register(self)
-        ns = Pyro4.locateNS()
-        ns.register(self.name, uri)
+        name=input("Need a name for the server :").strip()
+    	Pyro4.config.SERVERTYPE="thread"
+    	hostname=socket.gethostname()
+    	#nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=hostname)
+    	nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS()
+    	# assert broadcastServer is not None, "expect a broadcast server to be created"
+    	# create a Pyro daemon
+    	pyrodaemon=Pyro4.core.Daemon()
+    	# register a server object with the daemon
+    	serveruri=pyrodaemon.register(self) #(TransCiver())
+    	print("nameserverUri=%s" % nameserverUri)
+    	print("serverDaemon=%s" % nameserverDaemon)
+    	print("BC-server =%s" % broadcastServer)
+    	print("server uri=%s" % serveruri)
+    	# register it with the embedded nameserver directly
+    	nameserverDaemon.nameserver.register(name ,serveruri)
+    	while self.abort == 0: #True:
+    	#print("Waiting for events...")
+    	# create sets of the socket objects we will be waiting on
+    	# (a set provides fast lookup compared to a list)
+    		nameserverSockets = set(nameserverDaemon.sockets)
+    		pyroSockets = set(pyrodaemon.sockets)
+    		#rs=[broadcastServer]  # only the broadcast server is directly usable as a select() object
+    		rs=[nameserverDaemon]  # only the broadcast server is directly usable as a select() object
+    		rs.extend(nameserverSockets)
+    		rs.extend(pyroSockets)
+    		#rs,_,_ = select.select(rs,[],[],3)
+    		eventsForNameserver=[]
+    		eventsForDaemon=[]
+    		for s in rs:
+        		if s is broadcastServer:
+        			print("Broadcast server received a request")
+        			broadcastServer.processRequest()
+        		elif s in nameserverSockets:
+        		    eventsForNameserver.append(s)
+        		elif s in pyroSockets:
+        		    eventsForDaemon.append(s)
+    		if eventsForNameserver:
+    			print("Nameserver received a request")
+    			nameserverDaemon.events(eventsForNameserver)
+    		if eventsForDaemon:
+    			print("Daemon received a request")
+    			pyrodaemon.events(eventsForDaemon)
 	if self.abort == 1: 
 		nameserverDaemon.close()
 		broadcastServer.close()
-		daemon.close()
+		pyrodaemon.close()
 		print("done")	
 ## End class Daemon therade 
 ################################################################
